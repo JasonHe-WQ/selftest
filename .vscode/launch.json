@@ -1,0 +1,11 @@
+{
+  "version": "0,2,0",
+  "configurations": [
+    {
+      "name": "cuda-test",
+      "type": "cuda-gdb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/bin/warp_reduce"
+    }
+  ]
+}
