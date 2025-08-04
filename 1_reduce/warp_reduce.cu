@@ -31,7 +31,7 @@ __global__ void warp_reduce_launcher( const float *in_data ,float *out_data, con
         warpSum[warpId] = sum;
     }
     __syncthreads();
-    sum = (warpId==0) ? warpSum[laneId]:0;
+    sum = (laneId < (blocksize/WarpSize))? warpSum[laneId]:0.0f;
     if (warpId == 0) {
         sum = warp_reducer(sum);
         if (laneId == 0) {

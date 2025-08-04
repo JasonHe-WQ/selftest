@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
-project(CUDATutorial LANGUAGES CXX CUDA)
+project(selftest LANGUAGES CXX CUDA)
 
-find_package(CUDA 12.0 REQUIRED)
+find_package(CUDAToolkit )
 set(CUDA_PATH ${CUDA_TOOLKIT_ROOT_DIR})
 set(CMAKE_C_FLAGS    "${CMAKE_C_FLAGS}")
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS}")
@@ -31,3 +31,5 @@ link_directories(
 )
 
 add_subdirectory(1_reduce)
+add_subdirectory(2_histogram)
+add_subdirectory(3_gemm)
