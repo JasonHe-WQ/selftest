@@ -6,7 +6,7 @@
 void randomMatrix (int m, int n,float * mat){
     for (int row=0; row<m; row++){
         for (int col=0; col<n;col++){
-            mat[row * n + col] = (float)rand();
+            mat[row * n + col] = (float)rand() / (float)RAND_MAX;
         }
     }
 }
@@ -54,6 +54,9 @@ __global__ void cuda_gemm_v1( float* A_ptr,  float* B_ptr, float* C_ptr, const i
 
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
+    if (x >= n || y >= m){
+        return;
+    }
     float *A_ptr_start = A_ptr + blockIdx.y * blockDim.y * K;
     float *B_ptr_start = B_ptr + blockIdx.x * blockDim.x ;
     float tmp = 0.f;
