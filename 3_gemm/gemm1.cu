@@ -48,13 +48,13 @@ float compareMatrix(const float* A_ptr, const float* B_ptr, const int m, const i
 }
 
 
-// FIXME:
-__global__ void cuda_gemm_v1( float* A_ptr,  float* B_ptr, float* C_ptr, const int m, const int n, const int K)
+
+__global__ void cuda_gemm_v1( float* A_ptr,  float* B_ptr, float* C_ptr, const int M, const int N, const int K)
 {
 
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
-    if (x >= n || y >= m){
+    if (x >= N || y >= M){
         return;
     }
     float *A_ptr_start = A_ptr + blockIdx.y * blockDim.y * K;
@@ -64,17 +64,17 @@ __global__ void cuda_gemm_v1( float* A_ptr,  float* B_ptr, float* C_ptr, const i
 
     for (int i=0 ; i < K ; i++)
     {
-        tmp += A_ptr_start[threadIdx.y * K + i] * B_ptr_start[threadIdx.x + i * n];
+        tmp += A_ptr_start[threadIdx.y * K + i] * B_ptr_start[threadIdx.x + i * N];
     }
-    C_ptr[y * n + x] = tmp;
+    C_ptr[y * N + x] = tmp;
 
 }
 
 
 int main(){
     constexpr int m = 64;
-    constexpr int n = 64;
-    constexpr int k = 64;
+    constexpr int n = 128;
+    constexpr int k = 32;
     const size_t mat_a_size = m * k * sizeof(float);
     const size_t mat_b_size = k * n * sizeof(float);
     const size_t mat_c_size = m * n * sizeof(float);
@@ -99,7 +99,7 @@ int main(){
     cpu_gemm(mat_a_host, mat_b_host, mat_c_host_result, m, n, k);
     constexpr int BLOCK =16;
     dim3 block(BLOCK,BLOCK);
-    dim3 grid((m + BLOCK - 1) / BLOCK, (n + BLOCK - 1) / BLOCK);
+    dim3 grid((n + BLOCK - 1) / BLOCK, (m + BLOCK - 1) / BLOCK);
 
     cuda_gemm_v1<<<grid,block>>>(mat_a_device,mat_b_device,mat_c_device,m,n,k);
 
