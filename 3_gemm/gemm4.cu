@@ -49,7 +49,7 @@ float compareMatrix(const float* A_ptr, const float* B_ptr, const int m, const i
     return maxdiff;
 }
 
-// FIXME
+
 template<int M_PER_BLOCK, int N_PER_BLOCK, int K_PER_BLOCK, int NUMBER_PER_THREAD>
 __global__ void cuda_gemm_v4( float* A_ptr,  float* B_ptr, float* C_ptr, const int M, const int N, const int K)
 {
@@ -122,7 +122,7 @@ int main(){
     constexpr unsigned int M_NUM_PER_BLOCK = 32;
     constexpr unsigned int N_NUM_PER_BLOCK = 32;
     constexpr unsigned int K_NUM_PER_BLOCK = 32;
-    constexpr unsigned int NUM_PER_THREAD = 32;
+    constexpr unsigned int NUM_PER_THREAD = 4;
     dim3 block(8,32);
     dim3 grid(n / N_NUM_PER_BLOCK, m / M_NUM_PER_BLOCK);
 
