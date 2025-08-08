@@ -47,40 +47,53 @@ float compareMatrix(const float* A_ptr, const float* B_ptr, const int m, const i
     return maxdiff;
 }
 
-// TODO:
+
 template <int BLOCKSIZE,int STRIDE>
 __global__ void cuda_gemm_v3( float* A_ptr,  float* B_ptr, float* C_ptr, const int M, const int N, const int K)
 {
-
-
     constexpr unsigned int STEP = BLOCKSIZE * STRIDE;
+    const unsigned int tx = threadIdx.x ;
+    const unsigned int ty = threadIdx.y ;
+    float *A_ptr_start = A_ptr + STEP * blockIdx.y * K;
+    float *B_ptr_start = B_ptr + STEP * blockIdx.x ;
 
-    float *A_ptr_start = A_ptr + STEP * blockDim.y * K;
-    float *B_ptr_start = B_ptr + STEP * blockDim.x ;
-    float tmp[STRIDE][STRIDE] = 0.f;
 
     __shared__ float A_Block [STEP][STEP];
     __shared__ float B_Block [STEP][STEP];
+    float tmp[STRIDE][STRIDE] = {0.f};
+
+
+
     for (unsigned int s =0; s< K;s += STEP){
 
+// #pragma unroll
         for (unsigned int i =0; i < STRIDE; i++){
             for (unsigned int j =0; j< STRIDE;j++){
-                A_Block[i][j] =A_ptr_start ;
-                B_Block[i][j] =B_ptr_start ;
+                A_Block[ ty + i * BLOCKSIZE][tx + j * BLOCKSIZE ] = A_ptr_start[(ty + i * BLOCKSIZE) * K + tx + j * BLOCKSIZE + s ];
+                B_Block[ ty + i * BLOCKSIZE][tx + j * BLOCKSIZE ] = B_ptr_start[(ty + i * BLOCKSIZE + s) * N + tx + j * BLOCKSIZE ] ;
             }
         }
-
-
         __syncthreads();
+
+
+// #pragma unroll
         for (unsigned int i =0; i < STRIDE; i++){
             for (unsigned int j =0; j< STRIDE;j++){
-                for (unsigned int k=0 ; k < BLOCKSIZE ; k++){
-                tmp += A_Block[threadIdx.y][i]*B_Block[i][threadIdx.x];
+                for (unsigned int k=0 ; k < STEP ; k++){
+                    tmp[i][j] += A_Block[ty + i * BLOCKSIZE][k] * B_Block[k][tx + j * BLOCKSIZE] ;
             }
         }}
         __syncthreads();
     }
-    C_ptr[y * N + x] = tmp;
+    float *C_ptr_start = C_ptr + N * blockIdx.y * STEP + blockIdx.x * STEP;
+// #pragma unroll
+    for (unsigned int i =0; i < STRIDE; i++)
+    {
+        for (unsigned int j =0; j< STRIDE; j++)
+        {
+            C_ptr_start[ N *( ty + i * BLOCKSIZE) + tx + j * BLOCKSIZE ] = tmp[i][j];
+        }
+    }
 
 }
 
@@ -113,8 +126,9 @@ int main(){
     cpu_gemm(mat_a_host, mat_b_host, mat_c_host_result, m, n, k);
     constexpr int BLOCK =16;
     constexpr int STRIDE =2;
+    constexpr int STEP = BLOCK * STRIDE;
     dim3 block(BLOCK,BLOCK);
-    dim3 grid((n + BLOCK - 1) / BLOCK, (m + BLOCK - 1) / BLOCK);
+    dim3 grid((n + STEP - 1) / STEP, (m + STEP - 1) / STEP);
 
     cuda_gemm_v3<BLOCK,STRIDE><<<grid,block>>>(mat_a_device,mat_b_device,mat_c_device,m,n,k);
 
