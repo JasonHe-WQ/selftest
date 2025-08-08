@@ -3,6 +3,8 @@
 #include <bits/stdc++.h>
 
 
+#define FETCH_FLOAT4(pointer) (reinterpret_cast<float4*>(&(pointer))[0])
+
 void randomMatrix (int m, int n,float * mat){
     for (int row=0; row<m; row++){
         for (int col=0; col<n;col++){
@@ -47,54 +49,44 @@ float compareMatrix(const float* A_ptr, const float* B_ptr, const int m, const i
     return maxdiff;
 }
 
-
-template <int BLOCKSIZE,int STRIDE>
-__global__ void cuda_gemm_v3( float* A_ptr,  float* B_ptr, float* C_ptr, const int M, const int N, const int K)
+// FIXME
+template<int M_PER_BLOCK, int N_PER_BLOCK, int K_PER_BLOCK, int NUMBER_PER_THREAD>
+__global__ void cuda_gemm_v4( float* A_ptr,  float* B_ptr, float* C_ptr, const int M, const int N, const int K)
 {
-    constexpr unsigned int STEP = BLOCKSIZE * STRIDE;
     const unsigned int tx = threadIdx.x ;
     const unsigned int ty = threadIdx.y ;
-    float *A_ptr_start = A_ptr + STEP * blockIdx.y * K;
-    float *B_ptr_start = B_ptr + STEP * blockIdx.x ;
+    float *A_ptr_start = A_ptr + blockIdx.y * M_PER_BLOCK * K;
+    float *B_ptr_start = B_ptr + blockIdx.x * N_PER_BLOCK;
+
+    __shared__ float A_Block[M_PER_BLOCK][K_PER_BLOCK];
+    __shared__ float B_Block[K_PER_BLOCK][N_PER_BLOCK];
 
 
-    __shared__ float A_Block [STEP][STEP];
-    __shared__ float B_Block [STEP][STEP];
-    float tmp[STRIDE][STRIDE] = {0.f};
+    float temp[NUMBER_PER_THREAD] = {0.f};
 
 
-
-    for (unsigned int s =0; s< K;s += STEP){
-
-#pragma unroll
-        for (unsigned int i =0; i < STRIDE; i++){
-            for (unsigned int j =0; j< STRIDE;j++){
-                A_Block[ ty + i * BLOCKSIZE][tx + j * BLOCKSIZE ] = A_ptr_start[(ty + i * BLOCKSIZE) * K + tx + j * BLOCKSIZE + s ];
-                B_Block[ ty + i * BLOCKSIZE][tx + j * BLOCKSIZE ] = B_ptr_start[(ty + i * BLOCKSIZE + s) * N + tx + j * BLOCKSIZE ] ;
-            }
-        }
-        __syncthreads();
-
-
-#pragma unroll
-        for (unsigned int i =0; i < STRIDE; i++){
-            for (unsigned int j =0; j< STRIDE;j++){
-                for (unsigned int k=0 ; k < STEP ; k++){
-                    tmp[i][j] += A_Block[ty + i * BLOCKSIZE][k] * B_Block[k][tx + j * BLOCKSIZE] ;
-            }
-        }}
-        __syncthreads();
-    }
-    float *C_ptr_start = C_ptr + N * blockIdx.y * STEP + blockIdx.x * STEP;
-#pragma unroll
-    for (unsigned int i =0; i < STRIDE; i++)
+    for (int s =0 ; s < K ; s+= K_PER_BLOCK)
     {
-        for (unsigned int j =0; j< STRIDE; j++)
+        FETCH_FLOAT4(A_Block[ty][tx *NUMBER_PER_THREAD ]) = FETCH_FLOAT4(A_ptr_start[ K * ty + tx * NUMBER_PER_THREAD +s ]);
+        FETCH_FLOAT4(B_Block[ty][tx *NUMBER_PER_THREAD ]) = FETCH_FLOAT4(B_ptr_start[ N * (ty +s ) + tx * NUMBER_PER_THREAD  ]);
+
+        __syncthreads();
+
+
+        for (int i=0; i<NUMBER_PER_THREAD; i ++ )
         {
-            C_ptr_start[ N *( ty + i * BLOCKSIZE) + tx + j * BLOCKSIZE ] = tmp[i][j];
+            for (int k =0 ; k<K_PER_BLOCK; k++) {
+                temp[i] += A_Block[ty][k] * B_Block[k][tx*NUMBER_PER_THREAD + i ];
+            }
         }
+        __syncthreads();
     }
 
+    float *C_Ptr_Start = C_ptr + N * M_PER_BLOCK * blockIdx.y + blockIdx.x * N_PER_BLOCK;
+    for (int i =0 ; i<NUMBER_PER_THREAD; i++)
+    {
+        C_Ptr_Start[ty * N + tx * NUMBER_PER_THREAD + i] = temp[i];
+    }
 }
 
 
@@ -124,13 +116,17 @@ int main(){
     cudaMemcpy(mat_b_device,mat_b_host,mat_b_size,cudaMemcpyHostToDevice);
 
     cpu_gemm(mat_a_host, mat_b_host, mat_c_host_result, m, n, k);
-    constexpr int BLOCK =16;
-    constexpr int STRIDE =2;
-    constexpr int STEP = BLOCK * STRIDE;
-    dim3 block(BLOCK,BLOCK);
-    dim3 grid((n + STEP - 1) / STEP, (m + STEP - 1) / STEP);
 
-    cuda_gemm_v3<BLOCK,STRIDE><<<grid,block>>>(mat_a_device,mat_b_device,mat_c_device,m,n,k);
+
+
+    constexpr unsigned int M_NUM_PER_BLOCK = 32;
+    constexpr unsigned int N_NUM_PER_BLOCK = 32;
+    constexpr unsigned int K_NUM_PER_BLOCK = 32;
+    constexpr unsigned int NUM_PER_THREAD = 32;
+    dim3 block(8,32);
+    dim3 grid(n / N_NUM_PER_BLOCK, m / M_NUM_PER_BLOCK);
+
+    cuda_gemm_v4<M_NUM_PER_BLOCK,N_NUM_PER_BLOCK,K_NUM_PER_BLOCK,NUM_PER_THREAD><<<grid,block>>>(mat_a_device,mat_b_device,mat_c_device,m,n,k);
 
 
 
