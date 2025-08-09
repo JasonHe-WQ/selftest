@@ -107,10 +107,7 @@ __global__ void cuda_gemm_v5( float* A_ptr,  float* B_ptr, float* C_ptr, const i
     float *C_Ptr_Start = C_ptr + N * M_PER_BLOCK * blockIdx.y + blockIdx.x * N_PER_BLOCK;
     for (int i =0 ; i<M_NUM_PER_THREAD; i++)
     {
-        for (int j =0 ; j<N_NUM_PER_THREAD; j++)
-        {
-            C_Ptr_Start[ N * ( ty * M_NUM_PER_THREAD + i) + tx * N_NUM_PER_THREAD + j] = temp[i][j];
-        }
+            FETCH_FLOAT4(C_Ptr_Start[ N * ( ty * M_NUM_PER_THREAD + i) + tx * N_NUM_PER_THREAD ] )= FETCH_FLOAT4(temp[i]);
     }
 }
 
