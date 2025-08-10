@@ -50,8 +50,7 @@ float compareMatrix(const float* A_ptr, const float* B_ptr, const int m, const i
 }
 
 
-template< int M_PER_BLOCK, int N_PER_BLOCK, int K_PER_BLOCK,  int NUMBER_PER_THREAD,
-int M_NUM_PER_THREAD, int N_NUM_PER_THREAD, int K_NUM_PER_THREAD>
+template< int M_PER_BLOCK, int N_PER_BLOCK, int K_PER_BLOCK,  int NUM_PER_THREAD>
 __global__ void cuda_gemm_v5( float* A_ptr,  float* B_ptr, float* C_ptr, const int M, const int N, const int K)
 {
     const unsigned int tx = threadIdx.x ;
@@ -63,38 +62,40 @@ __global__ void cuda_gemm_v5( float* A_ptr,  float* B_ptr, float* C_ptr, const i
     __shared__ float B_Block[K_PER_BLOCK][N_PER_BLOCK];
 
 
-    float A_Reg [M_NUM_PER_THREAD] = {0.f};
-    float B_Reg [N_NUM_PER_THREAD] = {0.f};
-    float temp[M_NUM_PER_THREAD][N_NUM_PER_THREAD] = {0.f};
+    float A_Reg [NUM_PER_THREAD] = {0.f};
+    float B_Reg [NUM_PER_THREAD] = {0.f};
+    float A_Transpose[NUM_PER_THREAD] = {0.f};
+    float temp[NUM_PER_THREAD][NUM_PER_THREAD] = {0.f};
 
 
     for (int s =0 ; s < K ; s+= K_PER_BLOCK)
     {
-        for (unsigned int i = 0; i < M_NUM_PER_THREAD; i++)
+        for (unsigned int i = 0; i < NUM_PER_THREAD; i++)
         {
-            FETCH_FLOAT4(A_Block[ty * M_NUM_PER_THREAD+ i ][tx * K_NUM_PER_THREAD ]) =
-                FETCH_FLOAT4(A_ptr_start[ K * (ty * M_NUM_PER_THREAD+ i) + tx * K_NUM_PER_THREAD +s ]);
+            FETCH_FLOAT4(A_Transpose[0]) =
+                FETCH_FLOAT4(A_ptr_start[ K * (ty * NUM_PER_THREAD+ i) + tx * NUM_PER_THREAD +s ]);
+            A_Block[tx * NUM_PER_THREAD + 0][ty*NUM_PER_THREAD + i] = A_Transpose[0];
+            A_Block[tx * NUM_PER_THREAD + 1][ty*NUM_PER_THREAD + i] = A_Transpose[1];
+            A_Block[tx * NUM_PER_THREAD + 2][ty*NUM_PER_THREAD + i] = A_Transpose[2];
+            A_Block[tx * NUM_PER_THREAD + 3][ty*NUM_PER_THREAD + i] = A_Transpose[3];
         }
-        for (unsigned int i = 0; i < K_NUM_PER_THREAD; i++)
+        for (unsigned int i = 0; i < NUM_PER_THREAD; i++)
         {
-            FETCH_FLOAT4(B_Block[ty * K_NUM_PER_THREAD + i][tx * N_NUM_PER_THREAD ]) =
-                FETCH_FLOAT4(B_ptr_start[ N * (ty * K_NUM_PER_THREAD  + i + s) + tx * N_NUM_PER_THREAD  ]);
+            FETCH_FLOAT4(B_Block[ty * NUM_PER_THREAD + i][tx * NUM_PER_THREAD ]) =
+                FETCH_FLOAT4(B_ptr_start[ N * (ty * NUM_PER_THREAD  + i + s) + tx * NUM_PER_THREAD  ]);
         }
         __syncthreads();
 
 
         for (int k=0;k<K_PER_BLOCK;k++)
         {
-            A_Reg [0] = A_Block[ty * M_NUM_PER_THREAD][k];
-            A_Reg [1] = A_Block[ty * M_NUM_PER_THREAD + 1][k];
-            A_Reg [2] = A_Block[ty * M_NUM_PER_THREAD + 2][k];
-            A_Reg [3] = A_Block[ty * M_NUM_PER_THREAD + 3][k];
-            FETCH_FLOAT4(B_Reg[0]) = FETCH_FLOAT4(B_Block[k][tx * N_NUM_PER_THREAD]);
+            FETCH_FLOAT4(A_Reg[0]) = FETCH_FLOAT4(A_Block[k][ty * NUM_PER_THREAD]);
+            FETCH_FLOAT4(B_Reg[0]) = FETCH_FLOAT4(B_Block[k][tx * NUM_PER_THREAD]);
 #pragma unroll
-            for (int i=0;i<M_NUM_PER_THREAD;i++)
+            for (int i=0;i<NUM_PER_THREAD;i++)
             {
 #pragma unroll
-                for (int j=0;j<N_NUM_PER_THREAD;j++)
+                for (int j=0;j<NUM_PER_THREAD;j++)
                 {
                     temp[i][j] += A_Reg[i] * B_Reg[j];
                 }
@@ -106,9 +107,9 @@ __global__ void cuda_gemm_v5( float* A_ptr,  float* B_ptr, float* C_ptr, const i
 
     float *C_Ptr_Start = C_ptr + N * M_PER_BLOCK * blockIdx.y + blockIdx.x * N_PER_BLOCK;
 #pragma unroll
-    for (unsigned int i =0; i < N_NUM_PER_THREAD; i++)
+    for (unsigned int i =0; i < NUM_PER_THREAD; i++)
     {
-        FETCH_FLOAT4(C_Ptr_Start[N*(ty*M_NUM_PER_THREAD + i) + tx*N_NUM_PER_THREAD]) = FETCH_FLOAT4(temp[i]);
+        FETCH_FLOAT4(C_Ptr_Start[N*(ty*NUM_PER_THREAD + i) + tx*NUM_PER_THREAD]) = FETCH_FLOAT4(temp[i]);
 
     }
 }
@@ -147,10 +148,7 @@ int main(){
     constexpr unsigned int M_NUM_PER_BLOCK = 64;
     constexpr unsigned int N_NUM_PER_BLOCK = 64;
     constexpr unsigned int K_NUM_PER_BLOCK = 64;
-    constexpr unsigned int NUM_PER_THREAD = 16;
-    constexpr unsigned int M_NUM_PER_THREAD = 4;
-    constexpr unsigned int N_NUM_PER_THREAD = 4;
-    constexpr unsigned int K_NUM_PER_THREAD = 4;
+    constexpr unsigned int NUM_PER_THREAD = 4;
     dim3 block(16,16);
     dim3 grid(n / N_NUM_PER_BLOCK, m / M_NUM_PER_BLOCK);
 
@@ -161,7 +159,7 @@ int main(){
     cudaEventCreate(&stop);
     cudaEventRecord(start);
 
-    cuda_gemm_v5<M_NUM_PER_BLOCK,N_NUM_PER_BLOCK,K_NUM_PER_BLOCK,NUM_PER_THREAD,M_NUM_PER_THREAD,N_NUM_PER_THREAD,K_NUM_PER_THREAD><<<grid,block>>>(mat_a_device,mat_b_device,mat_c_device,m,n,k);
+    cuda_gemm_v5<M_NUM_PER_BLOCK,N_NUM_PER_BLOCK,K_NUM_PER_BLOCK,NUM_PER_THREAD><<<grid,block>>>(mat_a_device,mat_b_device,mat_c_device,m,n,k);
 
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
@@ -173,10 +171,10 @@ int main(){
     float diff = compareMatrix(mat_c_host_result, mat_c_device_result,m,n);
     if (diff > 0.1)
     {
-        printf("diff too big: %f",diff);
+        printf("diff too big: %f \n",diff);
     }else
     {
-        printf("diff small: %f",diff);
+        printf("diff small: %f \n",diff);
     }
     printf("gemm latency = %f ms\n", milliseconds);
     free(mat_a_host);

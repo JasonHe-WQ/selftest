@@ -185,10 +185,10 @@ int main(){
     float diff = compareMatrix(mat_c_host_result, mat_c_device_result,m,n);
     if (diff > 0.1)
     {
-        printf("diff too big: %f",diff);
+        printf("diff too big: %f \n",diff);
     }else
     {
-        printf("diff small: %f",diff);
+        printf("diff small: %f \n",diff);
     }
     printf("gemm latency = %f ms\n", milliseconds);
     free(mat_a_host);
