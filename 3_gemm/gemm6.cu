@@ -61,7 +61,6 @@ __global__ void cuda_gemm_v5( float* A_ptr,  float* B_ptr, float* C_ptr, const i
 
     __shared__ float A_Block[M_PER_BLOCK][K_PER_BLOCK];
     __shared__ float B_Block[K_PER_BLOCK][N_PER_BLOCK];
-    __shared__ float C_Block[M_PER_BLOCK][N_PER_BLOCK];
 
 
     float A_Reg [M_NUM_PER_THREAD] = {0.f};
@@ -109,18 +108,7 @@ __global__ void cuda_gemm_v5( float* A_ptr,  float* B_ptr, float* C_ptr, const i
 #pragma unroll
     for (unsigned int i =0; i < N_NUM_PER_THREAD; i++)
     {
-
-        FETCH_FLOAT4(C_Block[ty*M_NUM_PER_THREAD + i][tx*N_NUM_PER_THREAD]) = FETCH_FLOAT4(temp[i]);
-
-    }
-    __syncthreads();
-#pragma unroll
-    for (unsigned int i =0; i < N_NUM_PER_THREAD; i++)
-    {
-
-        FETCH_FLOAT4(C_Ptr_Start[N*(ty*M_NUM_PER_THREAD + i) + tx*N_NUM_PER_THREAD]) =
-            FETCH_FLOAT4(C_Block[ty*M_NUM_PER_THREAD + i][tx*N_NUM_PER_THREAD]);
-
+        FETCH_FLOAT4(C_Ptr_Start[N*(ty*M_NUM_PER_THREAD + i) + tx*N_NUM_PER_THREAD]) = FETCH_FLOAT4(temp[i]);
 
     }
 }

@@ -4,6 +4,7 @@ add_executable(gemm2 gemm2.cu)
 add_executable(gemm3 gemm3.cu)
 add_executable(gemm4 gemm4.cu)
 add_executable(gemm5 gemm5.cu)
+add_executable(gemm6 gemm6.cu)
 target_link_libraries(
         gemm1 PUBLIC
         -lcudart
@@ -29,6 +30,12 @@ target_link_libraries(
 
 target_link_libraries(
         gemm5 PUBLIC
+        -lcudart
+        -lcudadevrt
+)
+
+target_link_libraries(
+        gemm6 PUBLIC
         -lcudart
         -lcudadevrt
 )
