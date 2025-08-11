@@ -33,3 +33,4 @@ link_directories(
 add_subdirectory(1_reduce)
 add_subdirectory(2_histogram)
 add_subdirectory(3_gemm)
+add_subdirectory(4_ncu)
